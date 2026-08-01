@@ -9,12 +9,15 @@ const state = {
   downloads: new Map(),
   shuffle: false,
   repeat: false,
-  source: ""
+  source: "",
+  localRoot: ""
 };
 
 const audio = $("#audio");
 const trackList = $("#track-list");
 const queueList = $("#queue-list");
+const audioExtensions = new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus"]);
+let currentObjectUrl = null;
 
 function formatBytes(bytes) {
   if (!bytes) return "—";
@@ -30,6 +33,79 @@ function formatTime(seconds) {
 
 function esc(text) {
   return String(text ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+}
+
+function fileExtension(name) {
+  return name.split(".").pop().toLowerCase();
+}
+
+function isAudioFile(file) {
+  return audioExtensions.has(fileExtension(file.name));
+}
+
+async function mapLimited(items, limit, mapper) {
+  const result = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      result[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return result;
+}
+
+function readLocalDuration(file) {
+  return new Promise(resolve => {
+    const probe = new Audio();
+    const url = URL.createObjectURL(file);
+    let finished = false;
+    const finish = duration => {
+      if (finished) return;
+      finished = true;
+      URL.revokeObjectURL(url);
+      probe.removeAttribute("src");
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    const timeout = setTimeout(() => finish(0), 8000);
+    probe.preload = "metadata";
+    probe.addEventListener("loadedmetadata", () => { clearTimeout(timeout); finish(probe.duration); }, { once: true });
+    probe.addEventListener("error", () => { clearTimeout(timeout); finish(0); }, { once: true });
+    probe.src = url;
+  });
+}
+
+async function indexLocalFile(file, index) {
+  const relative = file.webkitRelativePath || file.name;
+  const parts = relative.split("/");
+  const extension = fileExtension(file.name);
+  const filename = file.name.slice(0, -(extension.length + 1));
+  const trackMatch = filename.match(/^(\d+)\s*[-_.]\s*/);
+  const withoutTrack = filename.replace(/^\d+\s*[-_.]\s*/, "");
+  const nameParts = withoutTrack.split(" - ");
+  const duration = await readLocalDuration(file);
+  return {
+    id: `local-${file.lastModified}-${file.size}-${index}`,
+    relative,
+    title: nameParts.length > 1 ? nameParts.slice(1).join(" - ") : withoutTrack,
+    artist: nameParts.length > 1 ? nameParts[0] : "Unknown Artist",
+    album: parts.length > 1 ? parts[parts.length - 2] : "Loose Tracks",
+    genre: "Unknown",
+    track: Number(trackMatch?.[1] || index + 1),
+    size: file.size,
+    duration,
+    bitrate: duration ? Math.round(file.size * 8 / duration) : 0,
+    sampleRate: 0,
+    codec: extension.toUpperCase(),
+    file
+  };
+}
+
+function releaseCurrentObjectUrl() {
+  if (!currentObjectUrl) return;
+  URL.revokeObjectURL(currentObjectUrl);
+  currentObjectUrl = null;
 }
 
 function uniqueValues(key) {
@@ -150,6 +226,22 @@ function renderQueue() {
   }).join("");
 }
 
+function resetPlayer() {
+  audio.pause();
+  releaseCurrentObjectUrl();
+  audio.removeAttribute("src");
+  audio.removeAttribute("data-track-id");
+  audio.load();
+  state.downloads.forEach(download => clearInterval(download.timer));
+  state.downloads.clear();
+  state.queue = [];
+  state.queueIndex = -1;
+  $("#now-title").textContent = "Nothing playing";
+  $("#now-artist").textContent = "Choose a track from your local library";
+  renderQueue();
+  updatePlayState();
+}
+
 async function playQueueIndex(index) {
   if (!state.queue.length) return;
   state.queueIndex = (index + state.queue.length) % state.queue.length;
@@ -161,7 +253,13 @@ async function playQueueIndex(index) {
     return;
   }
   if (audio.dataset.trackId !== track.id) {
-    audio.src = `/media/${track.id}`;
+    releaseCurrentObjectUrl();
+    if (track.file) {
+      currentObjectUrl = URL.createObjectURL(track.file);
+      audio.src = currentObjectUrl;
+    } else {
+      audio.src = `/media/${track.id}`;
+    }
     audio.dataset.trackId = track.id;
   }
   $("#now-title").textContent = track.title;
@@ -213,13 +311,7 @@ $("#queue-all").addEventListener("click", () => {
   renderQueue();
 });
 $("#remove-queue").addEventListener("click", () => {
-  audio.pause(); audio.removeAttribute("src"); audio.load();
-  state.downloads.forEach(download => clearInterval(download.timer));
-  state.downloads.clear();
-  state.queue = []; state.queueIndex = -1;
-  $("#now-title").textContent = "Nothing playing";
-  $("#now-artist").textContent = "Choose a track from your local library";
-  renderQueue(); updatePlayState();
+  resetPlayer();
 });
 $("#play-pause").addEventListener("click", () => {
   if (!audio.src && state.queue.length) playQueueIndex(state.queueIndex < 0 ? 0 : state.queueIndex);
@@ -255,6 +347,8 @@ $(".toolbar-tab[data-panel='search']").addEventListener("click", () => {
   $(".search-wrap").classList.toggle("visible");
   $("#search-input").focus();
 });
+$("#choose-folder").addEventListener("click", () => $("#folder-picker").click());
+$("#folder-picker").addEventListener("change", event => loadLocalFiles(event.target.files));
 
 audio.addEventListener("play", updatePlayState);
 audio.addEventListener("pause", updatePlayState);
@@ -269,7 +363,60 @@ audio.addEventListener("error", () => {
   updatePlayState();
 });
 
+async function loadLocalFiles(fileList) {
+  const files = [...fileList].filter(isAudioFile);
+  if (!files.length) {
+    showFolderPrompt();
+    trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">That folder contains no supported audio files.</td></tr>`;
+    return;
+  }
+  resetPlayer();
+  state.selectedId = null;
+  $("#queue-button").disabled = true;
+  $("#play-selection").disabled = true;
+  $("#choose-folder").disabled = true;
+  $("#choose-folder").lastChild.textContent = "Indexing Music…";
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Reading ${files.length} local music files…</td></tr>`;
+  state.tracks = await mapLimited(files, 4, indexLocalFile);
+  state.filtered = [...state.tracks].sort((a, b) => a.relative.localeCompare(b.relative));
+  state.source = "browser";
+  state.localRoot = files[0].webkitRelativePath?.split("/")[0] || "Selected files";
+  fillSelect("#genre-filter", "genre");
+  fillSelect("#artist-filter", "artist");
+  fillSelect("#album-filter", "album");
+  renderTracks();
+  $("#queue-all").disabled = false;
+  $("#connection-copy").textContent = `${state.tracks.length} local tracks • ${state.localRoot} • browser only`;
+  $("#track-count").textContent = state.tracks.length;
+  $("#choose-folder").disabled = false;
+  $("#choose-folder").lastChild.textContent = "Change Music Folder";
+}
+
+function showFolderPrompt() {
+  resetPlayer();
+  state.tracks = [];
+  state.filtered = [];
+  state.selectedId = null;
+  state.source = "browser";
+  state.localRoot = "";
+  fillSelect("#genre-filter", "genre");
+  fillSelect("#artist-filter", "artist");
+  fillSelect("#album-filter", "album");
+  $("#queue-button").disabled = true;
+  $("#play-selection").disabled = true;
+  $("#queue-all").disabled = true;
+  $("#tab-title").textContent = "My Music Collection (0)";
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Choose a music folder to build your private local library.</td></tr>`;
+  $("#connection-copy").textContent = "No folder selected • files stay on this device";
+  $("#track-count").textContent = "0";
+}
+
 async function loadLibrary() {
+  const isLocalServer = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  if (!isLocalServer) {
+    showFolderPrompt();
+    return;
+  }
   try {
     const response = await fetch("/api/library");
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
@@ -285,40 +432,17 @@ async function loadLibrary() {
     const folder = data.source.replace(/^\/Users\/[^/]+/, "~");
     $("#connection-copy").textContent = `${state.tracks.length} local tracks • ${folder}`;
     $("#track-count").textContent = state.tracks.length;
-  } catch (error) {
-    trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Could not load the local library: ${esc(error.message)}</td></tr>`;
-    $("#connection-copy").textContent = "Local library unavailable";
+  } catch {
+    showFolderPrompt();
   }
 }
-
-const weatherCodes = {
-  0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Cloudy",
-  45: "Fog", 48: "Icy fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle",
-  56: "Icy drizzle", 57: "Icy drizzle", 61: "Rain", 63: "Rain", 65: "Heavy rain",
-  66: "Icy rain", 67: "Icy rain", 71: "Snow", 73: "Snow", 75: "Heavy snow",
-  77: "Snow grains", 80: "Showers", 81: "Showers", 82: "Heavy showers",
-  85: "Snow showers", 86: "Snow showers", 95: "Thunderstorms", 96: "Thunderstorms", 99: "Thunderstorms"
-};
 
 function updateLocalClock() {
   $("#local-time").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-async function updateLocalWeather() {
-  try {
-    const response = await fetch("/api/weather");
-    if (!response.ok) throw new Error("Weather unavailable");
-    const weather = await response.json();
-    $("#local-weather").textContent = `${Math.round(weather.temperature)}°F ${weatherCodes[weather.code] || "Weather"}`;
-    $("#local-info").title = `Local conditions near ${weather.location}`;
-  } catch {
-    $("#local-weather").textContent = "Weather offline";
-  }
-}
-
 audio.volume = 0.8;
 loadLibrary();
 updateLocalClock();
-updateLocalWeather();
 setInterval(updateLocalClock, 30_000);
-setInterval(updateLocalWeather, 10 * 60_000);
+window.addEventListener("beforeunload", releaseCurrentObjectUrl);

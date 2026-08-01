@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <title>jdanwire</title>
   <link rel="icon" type="image/png" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="apple-touch-icon" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="stylesheet" href="/vendor/98.css" />
-  <link rel="stylesheet" href="/styles.css?v=5" />
+  <link rel="stylesheet" href="/styles.css?v=6" />
 </head>
 <body>
   <main class="window app-window" aria-label="jdanwire music library">
@@ -51,6 +52,8 @@
             <select id="album-filter" size="7" aria-label="Album filter"></select>
           </section>
           <button id="clear-filters" class="back-button">Back To All Results</button>
+          <button id="choose-folder" class="choose-folder-button"><img src="/assets/kde-crystal/library.png" alt="" />Choose Music Folder</button>
+          <input id="folder-picker" type="file" webkitdirectory multiple accept=".mp3,.flac,.wav,.m4a,.aac,.ogg,.opus,audio/*" hidden />
         </aside>
 
         <div class="library-area">
@@ -95,12 +98,12 @@
           <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek" />
           <span id="time-total">0:00</span>
           <img class="status-icon volume-icon" src="/assets/kde-crystal/transport/volume.png" alt="" /><input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
-          <button class="player-label" id="local-info" aria-label="Local time and weather"><span id="local-time">--:--</span><span class="weather-separator"> · </span><span id="local-weather">Weather…</span></button>
+          <button class="player-label" id="local-info" aria-label="Local time"><span id="local-time">--:--</span></button>
         </div>
       </footer>
     </div>
   </main>
   <audio id="audio" preload="metadata"></audio>
-  <script type="module" src="/app.js?v=5"></script>
+  <script type="module" src="/app.js?v=6"></script>
 </body>
 </html>

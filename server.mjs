@@ -126,23 +126,6 @@ async function getLibrary() {
   return libraryPromise;
 }
 
-let weatherCache = { expires: 0, value: null };
-async function getWeather() {
-  if (weatherCache.value && weatherCache.expires > Date.now()) return weatherCache.value;
-  const endpoint = "https://api.open-meteo.com/v1/forecast?latitude=40.7357&longitude=-74.0301&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York";
-  const response = await fetch(endpoint, { signal: AbortSignal.timeout(5000) });
-  if (!response.ok) throw new Error(`Weather provider returned ${response.status}`);
-  const data = await response.json();
-  const value = {
-    location: "Hoboken, NJ",
-    temperature: data.current.temperature_2m,
-    code: data.current.weather_code,
-    observedAt: data.current.time
-  };
-  weatherCache = { expires: Date.now() + 10 * 60_000, value };
-  return value;
-}
-
 function json(res, status, value) {
   const body = JSON.stringify(value);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body) });
@@ -190,10 +173,6 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/library") {
     const tracks = await getLibrary();
     return json(res, 200, { tracks, source: MUSIC_DIR });
-  }
-  if (url.pathname === "/api/weather") {
-    try { return json(res, 200, await getWeather()); }
-    catch (error) { return json(res, 503, { error: error.message }); }
   }
   if (url.pathname.startsWith("/media/")) {
     try {
