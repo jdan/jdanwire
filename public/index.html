@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jdanwire</title>
+  <link rel="icon" type="image/png" href="/assets/jdanwire-avatar.png?v=2" />
+  <link rel="apple-touch-icon" href="/assets/jdanwire-avatar.png?v=2" />
+  <link rel="stylesheet" href="/vendor/98.css" />
+  <link rel="stylesheet" href="/styles.css?v=5" />
+</head>
+<body>
+  <main class="window app-window" aria-label="jdanwire music library">
+    <div class="title-bar">
+      <div class="title-bar-text">jdanwire</div>
+      <div class="title-bar-controls">
+        <button aria-label="Minimize"></button><button aria-label="Maximize"></button><button aria-label="Close"></button>
+      </div>
+    </div>
+
+    <div class="window-body app-body">
+      <nav class="menu-strip" aria-label="Application menu">
+        <button>File</button><button>View</button><button>Navigation</button><button>Resources</button><button>Tools</button><button>Help</button>
+      </nav>
+
+      <section class="toolbar" aria-label="Main toolbar">
+        <div class="toolbar-tabs" role="tablist">
+          <button class="toolbar-tab" data-panel="search"><img class="toolbar-icon" src="/assets/kde-crystal/search.png" alt="" />Search</button>
+          <button class="toolbar-tab"><img class="toolbar-icon" src="/assets/kde-crystal/monitor.png" alt="" />Monitor</button>
+          <button class="toolbar-tab"><img class="toolbar-icon" src="/assets/kde-crystal/connections.png" alt="" />Connections</button>
+          <button class="toolbar-tab active" aria-selected="true"><img class="toolbar-icon" src="/assets/kde-crystal/library.png" alt="" />Library</button>
+          <button class="toolbar-tab"><img class="toolbar-icon" src="/assets/kde-crystal/console.png" alt="" />Console</button>
+        </div>
+        <div class="brand"><img src="/assets/jdanwire-avatar.png?v=2" alt="" /><strong>jdan</strong>wire</div>
+      </section>
+
+      <section class="workspace">
+        <aside class="filter-sidebar" aria-label="Filter results">
+          <div class="sidebar-label">Filter Results:</div>
+          <label class="search-wrap"><span>Search</span><input id="search-input" type="search" placeholder="Search your library" /></label>
+          <section class="filter-box">
+            <h2>Genre</h2>
+            <select id="genre-filter" size="6" aria-label="Genre filter"></select>
+          </section>
+          <section class="filter-box">
+            <h2>Artist</h2>
+            <select id="artist-filter" size="7" aria-label="Artist filter"></select>
+          </section>
+          <section class="filter-box">
+            <h2>Album</h2>
+            <select id="album-filter" size="7" aria-label="Album filter"></select>
+          </section>
+          <button id="clear-filters" class="back-button">Back To All Results</button>
+          <button class="magnet-button">♫ jdanwire.local</button>
+        </aside>
+
+        <div class="library-area">
+          <div class="library-tab"><span>✕</span> <span id="tab-title">My Music Collection</span></div>
+          <div class="sunken-panel table-shell library-shell">
+            <table class="track-table" id="track-table">
+              <thead><tr><th>Quality</th><th>#</th><th>Title</th><th>Artist</th><th>Album</th><th>Size</th><th>Format</th><th>Bitrate</th></tr></thead>
+              <tbody id="track-list"><tr><td colspan="8" class="loading-cell">Scanning local music files…</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="action-strip" aria-label="Library actions">
+            <button id="queue-button" disabled><img class="action-icon" src="/assets/kde-crystal/actions/add-to-queue.png" alt="" />Add to Queue</button>
+            <button id="play-selection" disabled><img class="action-icon" src="/assets/kde-crystal/actions/play.png" alt="" />Play</button>
+            <button id="queue-all" disabled><img class="action-icon" src="/assets/kde-crystal/actions/queue-all.png" alt="" />Queue All</button>
+            <button id="remove-queue" disabled><img class="action-icon" src="/assets/kde-crystal/actions/remove.png" alt="" />Remove</button>
+          </div>
+
+          <div class="queue-heading"><span>Now Playing / Queue</span><strong id="queue-summary">0 tracks</strong></div>
+          <div class="sunken-panel table-shell queue-shell">
+            <table class="queue-table">
+              <thead><tr><th>#</th><th>Name</th><th>Artist</th><th>Status</th><th>Length</th></tr></thead>
+              <tbody id="queue-list"><tr class="empty-queue"><td colspan="5">Double-click a song to begin playback.</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="queue-actions" aria-label="Queue actions">
+            <button id="shuffle-button"><img class="queue-action-icon" src="/assets/kde-crystal/actions/shuffle-off.png" alt="" />Shuffle</button>
+            <button id="repeat-button"><img class="queue-action-icon" src="/assets/kde-crystal/actions/repeat-off.png" alt="" />Repeat Off</button>
+            <button id="pause-large"><img class="queue-action-icon" src="/assets/kde-crystal/actions/pause.png" alt="" />Pause</button>
+            <div class="now-playing-copy"><b id="now-title">Nothing playing</b><span id="now-artist">Choose a track from your local library</span></div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="status-footer">
+        <div class="connection-status"><img class="status-icon" src="/assets/kde-crystal/status/network.png" alt="" /><span id="connection-copy">Connecting to local library…</span></div>
+        <div class="transfer-lights"><img class="status-icon" src="/assets/kde-crystal/status/library.png" alt="" /><span id="track-count">0</span><img class="status-icon" src="/assets/kde-crystal/status/download.png" alt="Download" /><span>0 KB/s</span><img class="status-icon" src="/assets/kde-crystal/status/upload.png" alt="Upload" /><span>0 KB/s</span></div>
+        <div class="player-controls">
+          <button id="previous" title="Previous" aria-label="Previous"><img class="transport-image" src="/assets/kde-crystal/transport/previous.png" alt="" /></button><button id="play-pause" title="Play" aria-label="Play"><img class="transport-image" src="/assets/kde-crystal/transport/play.png" alt="" /></button><button id="stop" title="Stop" aria-label="Stop"><img class="transport-image" src="/assets/kde-crystal/transport/stop.png" alt="" /></button><button id="next" title="Next" aria-label="Next"><img class="transport-image" src="/assets/kde-crystal/transport/next.png" alt="" /></button>
+          <span id="time-current">0:00</span>
+          <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek" />
+          <span id="time-total">0:00</span>
+          <img class="status-icon volume-icon" src="/assets/kde-crystal/transport/volume.png" alt="" /><input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume" />
+          <button class="player-label" id="local-info" aria-label="Local time and weather"><span id="local-time">--:--</span><span class="weather-separator"> · </span><span id="local-weather">Weather…</span></button>
+        </div>
+      </footer>
+    </div>
+  </main>
+  <audio id="audio" preload="metadata"></audio>
+  <script type="module" src="/app.js?v=5"></script>
+</body>
+</html>
