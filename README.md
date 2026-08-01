@@ -9,7 +9,9 @@ Play it at [jdanwire.jordanscales.com](https://jdanwire.jordanscales.com/).
 ## Browser library
 
 Use **Choose Music Folder** to open a folder from your computer. The selected
-audio files stay in your browser and are never uploaded to the server.
+audio files stay in your browser and are never uploaded to the server. On
+supported Chromium browsers, jdanwire remembers the folder across reloads and
+asks you to reconnect only when the browser requires permission again.
 
 ### Run
 

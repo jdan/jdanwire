@@ -10,13 +10,18 @@ const state = {
   shuffle: false,
   repeat: false,
   source: "",
-  localRoot: ""
+  localRoot: "",
+  directoryHandle: null,
+  needsReconnect: false
 };
 
 const audio = $("#audio");
 const trackList = $("#track-list");
 const queueList = $("#queue-list");
 const audioExtensions = new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus"]);
+const libraryDatabase = "jdanwire-library";
+const libraryStore = "settings";
+const directoryHandleKey = "music-directory";
 let currentObjectUrl = null;
 
 function formatBytes(bytes) {
@@ -41,6 +46,61 @@ function fileExtension(name) {
 
 function isAudioFile(file) {
   return audioExtensions.has(fileExtension(file.name));
+}
+
+function openLibraryDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(libraryDatabase, 1);
+    request.addEventListener("upgradeneeded", () => request.result.createObjectStore(libraryStore), { once: true });
+    request.addEventListener("success", () => resolve(request.result), { once: true });
+    request.addEventListener("error", () => reject(request.error), { once: true });
+  });
+}
+
+async function readStoredDirectoryHandle() {
+  const database = await openLibraryDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(libraryStore, "readonly");
+    const request = transaction.objectStore(libraryStore).get(directoryHandleKey);
+    request.addEventListener("success", () => resolve(request.result || null), { once: true });
+    request.addEventListener("error", () => reject(request.error), { once: true });
+    transaction.addEventListener("complete", () => database.close(), { once: true });
+  });
+}
+
+async function storeDirectoryHandle(handle) {
+  const database = await openLibraryDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(libraryStore, "readwrite");
+    transaction.objectStore(libraryStore).put(handle, directoryHandleKey);
+    transaction.addEventListener("complete", () => { database.close(); resolve(); }, { once: true });
+    transaction.addEventListener("error", () => { database.close(); reject(transaction.error); }, { once: true });
+  });
+}
+
+async function directoryPermissionGranted(handle, requestPermission = false) {
+  if (typeof handle.queryPermission !== "function") return true;
+  let permission = await handle.queryPermission({ mode: "read" });
+  if (permission !== "granted" && requestPermission && typeof handle.requestPermission === "function") {
+    permission = await handle.requestPermission({ mode: "read" });
+  }
+  return permission === "granted";
+}
+
+async function collectDirectoryFiles(handle) {
+  const files = [];
+  async function visit(directory, relativeDirectory) {
+    for await (const entry of directory.values()) {
+      const relative = `${relativeDirectory}/${entry.name}`;
+      if (entry.kind === "directory") await visit(entry, relative);
+      else {
+        const file = await entry.getFile();
+        if (isAudioFile(file)) files.push({ file, relative });
+      }
+    }
+  }
+  await visit(handle, handle.name);
+  return files;
 }
 
 async function mapLimited(items, limit, mapper) {
@@ -76,8 +136,9 @@ function readLocalDuration(file) {
   });
 }
 
-async function indexLocalFile(file, index) {
-  const relative = file.webkitRelativePath || file.name;
+async function indexLocalFile(fileEntry, index) {
+  const file = fileEntry.file || fileEntry;
+  const relative = fileEntry.relative || file.webkitRelativePath || file.name;
   const parts = relative.split("/");
   const extension = fileExtension(file.name);
   const filename = file.name.slice(0, -(extension.length + 1));
@@ -347,7 +408,7 @@ $(".toolbar-tab[data-panel='search']").addEventListener("click", () => {
   $(".search-wrap").classList.toggle("visible");
   $("#search-input").focus();
 });
-$("#choose-folder").addEventListener("click", () => $("#folder-picker").click());
+$("#choose-folder").addEventListener("click", chooseMusicFolder);
 $("#folder-picker").addEventListener("change", event => loadLocalFiles(event.target.files));
 
 audio.addEventListener("play", updatePlayState);
@@ -363,8 +424,14 @@ audio.addEventListener("error", () => {
   updatePlayState();
 });
 
-async function loadLocalFiles(fileList) {
-  const files = [...fileList].filter(isAudioFile);
+function setFolderButtonLabel(label) {
+  $("#folder-button-label").textContent = label;
+}
+
+async function loadLocalFiles(fileList, rootName = "") {
+  const files = [...fileList]
+    .map(item => item.file ? item : { file: item, relative: item.webkitRelativePath || item.name })
+    .filter(item => isAudioFile(item.file));
   if (!files.length) {
     showFolderPrompt();
     trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">That folder contains no supported audio files.</td></tr>`;
@@ -375,12 +442,13 @@ async function loadLocalFiles(fileList) {
   $("#queue-button").disabled = true;
   $("#play-selection").disabled = true;
   $("#choose-folder").disabled = true;
-  $("#choose-folder").lastChild.textContent = "Indexing Music…";
+  setFolderButtonLabel("Indexing Music…");
   trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Reading ${files.length} local music files…</td></tr>`;
   state.tracks = await mapLimited(files, 4, indexLocalFile);
   state.filtered = [...state.tracks].sort((a, b) => a.relative.localeCompare(b.relative));
   state.source = "browser";
-  state.localRoot = files[0].webkitRelativePath?.split("/")[0] || "Selected files";
+  state.localRoot = rootName || files[0].relative.split("/")[0] || "Selected files";
+  state.needsReconnect = false;
   fillSelect("#genre-filter", "genre");
   fillSelect("#artist-filter", "artist");
   fillSelect("#album-filter", "album");
@@ -389,16 +457,55 @@ async function loadLocalFiles(fileList) {
   $("#connection-copy").textContent = `${state.tracks.length} local tracks • ${state.localRoot} • browser only`;
   $("#track-count").textContent = state.tracks.length;
   $("#choose-folder").disabled = false;
-  $("#choose-folder").lastChild.textContent = "Change Music Folder";
+  setFolderButtonLabel("Change Music Folder");
 }
 
-function showFolderPrompt() {
+async function loadDirectoryHandle(handle) {
+  const files = await collectDirectoryFiles(handle);
+  await loadLocalFiles(files, handle.name);
+}
+
+function chooseMusicFolder() {
+  if (typeof window.showDirectoryPicker !== "function") {
+    const picker = $("#folder-picker");
+    picker.value = "";
+    picker.click();
+    return;
+  }
+  choosePersistentMusicFolder();
+}
+
+async function choosePersistentMusicFolder() {
+  try {
+    if (state.directoryHandle && state.needsReconnect) {
+      if (await directoryPermissionGranted(state.directoryHandle, true)) {
+        await loadDirectoryHandle(state.directoryHandle);
+      } else {
+        $("#connection-copy").textContent = "Folder permission is required to restore this library";
+      }
+      return;
+    }
+    const handle = await window.showDirectoryPicker({ id: "jdanwire-music", mode: "read" });
+    state.directoryHandle = handle;
+    try { await storeDirectoryHandle(handle); }
+    catch (error) { console.warn("Could not remember the music folder", error); }
+    await loadDirectoryHandle(handle);
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      console.warn("Could not open the music folder", error);
+      $("#connection-copy").textContent = "Could not open that music folder";
+    }
+  }
+}
+
+function showFolderPrompt(reconnect = false) {
   resetPlayer();
   state.tracks = [];
   state.filtered = [];
   state.selectedId = null;
   state.source = "browser";
   state.localRoot = "";
+  state.needsReconnect = reconnect;
   fillSelect("#genre-filter", "genre");
   fillSelect("#artist-filter", "artist");
   fillSelect("#album-filter", "album");
@@ -406,9 +513,25 @@ function showFolderPrompt() {
   $("#play-selection").disabled = true;
   $("#queue-all").disabled = true;
   $("#tab-title").textContent = "My Music Collection (0)";
-  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Choose a music folder to build your private local library.</td></tr>`;
-  $("#connection-copy").textContent = "No folder selected • files stay on this device";
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">${reconnect ? "Reconnect your remembered music folder to restore the library." : "Choose a music folder to build your private local library."}</td></tr>`;
+  $("#connection-copy").textContent = reconnect ? "Music folder remembered • permission required" : "No folder selected • files stay on this device";
   $("#track-count").textContent = "0";
+  setFolderButtonLabel(reconnect ? "Reconnect Music Folder" : "Choose Music Folder");
+}
+
+async function restoreDirectoryHandle() {
+  if (typeof window.showDirectoryPicker !== "function" || !window.indexedDB) return false;
+  try {
+    const handle = await readStoredDirectoryHandle();
+    if (!handle) return false;
+    state.directoryHandle = handle;
+    if (await directoryPermissionGranted(handle)) await loadDirectoryHandle(handle);
+    else showFolderPrompt(true);
+    return true;
+  } catch (error) {
+    console.warn("Could not restore the remembered music folder", error);
+    return false;
+  }
 }
 
 async function loadLibrary() {
@@ -441,8 +564,13 @@ function updateLocalClock() {
   $("#local-time").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+async function initializeLibrary() {
+  if (await restoreDirectoryHandle()) return;
+  await loadLibrary();
+}
+
 audio.volume = 0.8;
-loadLibrary();
+initializeLibrary();
 updateLocalClock();
 setInterval(updateLocalClock, 30_000);
 window.addEventListener("beforeunload", releaseCurrentObjectUrl);
