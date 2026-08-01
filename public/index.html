@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="apple-touch-icon" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="stylesheet" href="/vendor/98.css" />
-  <link rel="stylesheet" href="/styles.css?v=7" />
+  <link rel="stylesheet" href="/styles.css?v=9" />
 </head>
 <body>
   <main class="window app-window" aria-label="jdanwire music library">
@@ -41,15 +41,15 @@
           <label class="search-wrap"><span>Search</span><input id="search-input" type="search" placeholder="Search your library" /></label>
           <section class="filter-box">
             <h2>Genre</h2>
-            <select id="genre-filter" size="6" aria-label="Genre filter"></select>
+            <select id="genre-filter" size="6" data-desktop-size="6" aria-label="Genre filter"></select>
           </section>
           <section class="filter-box">
             <h2>Artist</h2>
-            <select id="artist-filter" size="7" aria-label="Artist filter"></select>
+            <select id="artist-filter" size="7" data-desktop-size="7" aria-label="Artist filter"></select>
           </section>
           <section class="filter-box">
             <h2>Album</h2>
-            <select id="album-filter" size="7" aria-label="Album filter"></select>
+            <select id="album-filter" size="7" data-desktop-size="7" aria-label="Album filter"></select>
           </section>
           <button id="clear-filters" class="back-button">Back To All Results</button>
           <button id="choose-folder" class="choose-folder-button"><img src="/assets/kde-crystal/library.png" alt="" /><span id="folder-button-label">Choose Music Folder</span></button>
@@ -104,6 +104,6 @@
     </div>
   </main>
   <audio id="audio" preload="metadata"></audio>
-  <script type="module" src="/app.js?v=7"></script>
+  <script type="module" src="/app.js?v=9"></script>
 </body>
 </html>

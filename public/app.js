@@ -19,10 +19,22 @@ const audio = $("#audio");
 const trackList = $("#track-list");
 const queueList = $("#queue-list");
 const audioExtensions = new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus"]);
+const mobileViewport = window.matchMedia("(max-width: 600px)");
 const libraryDatabase = "jdanwire-library";
 const libraryStore = "settings";
 const directoryHandleKey = "music-directory";
 let currentObjectUrl = null;
+
+function syncFilterSelectSizes() {
+  ["#genre-filter", "#artist-filter", "#album-filter"].forEach(selector => {
+    const select = $(selector);
+    select.size = mobileViewport.matches ? 1 : Number(select.dataset.desktopSize);
+  });
+}
+
+mobileViewport.addEventListener?.("change", syncFilterSelectSizes);
+if (!mobileViewport.addEventListener) mobileViewport.addListener(syncFilterSelectSizes);
+syncFilterSelectSizes();
 
 function formatBytes(bytes) {
   if (!bytes) return "—";
@@ -353,10 +365,20 @@ function updatePlayState() {
 }
 
 trackList.addEventListener("click", event => {
+  if (event.target.closest(".folder-prompt")) {
+    chooseMusicFolder();
+    return;
+  }
   const row = event.target.closest("tr[data-id]");
   if (row) {
     selectTrack(row.dataset.id);
     if (event.detail === 2) addToQueue(selectedTrack(), true);
+  }
+});
+trackList.addEventListener("keydown", event => {
+  if (event.target.closest(".folder-prompt") && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    chooseMusicFolder();
   }
 });
 queueList.addEventListener("dblclick", event => {
@@ -434,7 +456,7 @@ async function loadLocalFiles(fileList, rootName = "") {
     .filter(item => isAudioFile(item.file));
   if (!files.length) {
     showFolderPrompt();
-    trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">That folder contains no supported audio files.</td></tr>`;
+    trackList.innerHTML = `<tr><td colspan="8" class="loading-cell folder-prompt" role="button" tabindex="0">That folder contains no supported audio files. Choose another folder.</td></tr>`;
     return;
   }
   resetPlayer();
@@ -513,7 +535,7 @@ function showFolderPrompt(reconnect = false) {
   $("#play-selection").disabled = true;
   $("#queue-all").disabled = true;
   $("#tab-title").textContent = "My Music Collection (0)";
-  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">${reconnect ? "Reconnect your remembered music folder to restore the library." : "Choose a music folder to build your private local library."}</td></tr>`;
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell folder-prompt" role="button" tabindex="0">${reconnect ? "Reconnect your remembered music folder to restore the library." : "Choose a music folder to build your private local library."}</td></tr>`;
   $("#connection-copy").textContent = reconnect ? "Music folder remembered • permission required" : "No folder selected • files stay on this device";
   $("#track-count").textContent = "0";
   setFolderButtonLabel(reconnect ? "Reconnect Music Folder" : "Choose Music Folder");
