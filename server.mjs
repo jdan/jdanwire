@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createReadStream, existsSync, promises as fs } from "node:fs";
+import { createReadStream, existsSync, promises as fs, statSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
@@ -8,12 +8,19 @@ const PORT = Number(process.env.PORT || 4173);
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 const AUDIO_EXTENSIONS = new Set([".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus"]);
 
-const requestedMusicDir = process.env.MUSIC_DIR
-  ? path.resolve(process.env.MUSIC_DIR.replace(/^~(?=\/|$)/, os.homedir()))
-  : path.join(os.homedir(), "jukebox", "music");
-const fallbackMusicDir = path.join(os.homedir(), "Projects", "jukebox", "music");
-const MUSIC_DIR = existsSync(requestedMusicDir) ? requestedMusicDir : fallbackMusicDir;
-const usedFallback = MUSIC_DIR !== requestedMusicDir;
+const musicDirArgument = process.argv[2];
+if (!musicDirArgument) {
+  console.error("Usage: npm start -- /path/to/music");
+  process.exit(1);
+}
+
+const MUSIC_DIR = path.resolve(musicDirArgument.replace(/^~(?=\/|$)/, os.homedir()));
+try {
+  if (!statSync(MUSIC_DIR).isDirectory()) throw new Error("not a directory");
+} catch {
+  console.error(`Music directory does not exist or is not a directory: ${MUSIC_DIR}`);
+  process.exit(1);
+}
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -182,7 +189,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   if (url.pathname === "/api/library") {
     const tracks = await getLibrary();
-    return json(res, 200, { tracks, source: MUSIC_DIR, requestedSource: requestedMusicDir, usedFallback });
+    return json(res, 200, { tracks, source: MUSIC_DIR });
   }
   if (url.pathname === "/api/weather") {
     try { return json(res, 200, await getWeather()); }
@@ -206,6 +213,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`jdanwire is running at http://localhost:${PORT}`);
-  console.log(`Music library: ${MUSIC_DIR}${usedFallback ? ` (fallback; ${requestedMusicDir} was not found)` : ""}`);
+  console.log(`Music library: ${MUSIC_DIR}`);
   getLibrary().then(tracks => console.log(`Indexed ${tracks.length} tracks.`));
 });
