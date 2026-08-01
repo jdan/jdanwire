@@ -110,7 +110,6 @@ button, input, select, table { font-family: inherit; font-size: inherit; }
 .filter-box option { padding: 2px 4px; }
 .filter-box option:checked { background: var(--selection); color: white; }
 .back-button { height: 27px; margin-top: 1px; }
-.magnet-button { height: 23px; color: white; background: linear-gradient(#777, #404040); text-shadow: 1px 1px #333; }
 
 .library-area { min-width: 0; min-height: 0; display: grid; grid-template-rows: 22px minmax(156px, 1fr) 66px 20px 82px 55px; }
 .library-tab {
