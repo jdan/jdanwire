@@ -18,6 +18,9 @@ const state = {
 const audio = $("#audio");
 const trackList = $("#track-list");
 const queueList = $("#queue-list");
+const workspace = $(".workspace");
+const filterSidebar = $(".filter-sidebar");
+const sidebarResizer = $("#sidebar-resizer");
 const libraryArea = $(".library-area");
 const libraryShell = $(".library-shell");
 const libraryResizer = $("#library-resizer");
@@ -27,7 +30,59 @@ const libraryDatabase = "jdanwire-library";
 const libraryStore = "settings";
 const directoryHandleKey = "music-directory";
 let currentObjectUrl = null;
+let sidebarResizeStart = null;
 let libraryResizeStart = null;
+
+function sidebarPaneLimits() {
+  const styles = getComputedStyle(workspace);
+  const minimum = parseFloat(styles.getPropertyValue("--sidebar-min-width")) || 125;
+  const libraryMinimum = parseFloat(styles.getPropertyValue("--library-min-width")) || 420;
+  const maximum = Math.max(minimum, workspace.clientWidth - sidebarResizer.getBoundingClientRect().width - libraryMinimum);
+  return { minimum, maximum };
+}
+
+function updateSidebarResizerAria() {
+  const { minimum, maximum } = sidebarPaneLimits();
+  sidebarResizer.setAttribute("aria-valuemin", Math.round(minimum));
+  sidebarResizer.setAttribute("aria-valuemax", Math.round(maximum));
+  sidebarResizer.setAttribute("aria-valuenow", Math.round(filterSidebar.getBoundingClientRect().width));
+}
+
+function setSidebarWidth(width) {
+  const { minimum, maximum } = sidebarPaneLimits();
+  const nextWidth = Math.min(maximum, Math.max(minimum, Math.round(width)));
+  workspace.style.setProperty("--sidebar-width", `${nextWidth}px`);
+  updateSidebarResizerAria();
+}
+
+sidebarResizer.addEventListener("pointerdown", event => {
+  if (event.button !== 0 || mobileViewport.matches) return;
+  sidebarResizeStart = { x: event.clientX, width: filterSidebar.getBoundingClientRect().width };
+  sidebarResizer.setPointerCapture?.(event.pointerId);
+  document.body.classList.add("resizing-sidebar");
+  event.preventDefault();
+});
+sidebarResizer.addEventListener("pointermove", event => {
+  if (!sidebarResizeStart) return;
+  setSidebarWidth(sidebarResizeStart.width + event.clientX - sidebarResizeStart.x);
+});
+function finishSidebarResize(event) {
+  if (!sidebarResizeStart) return;
+  sidebarResizeStart = null;
+  if (sidebarResizer.hasPointerCapture?.(event.pointerId)) sidebarResizer.releasePointerCapture(event.pointerId);
+  document.body.classList.remove("resizing-sidebar");
+}
+sidebarResizer.addEventListener("pointerup", finishSidebarResize);
+sidebarResizer.addEventListener("pointercancel", finishSidebarResize);
+sidebarResizer.addEventListener("keydown", event => {
+  const currentWidth = filterSidebar.getBoundingClientRect().width;
+  if (event.key === "ArrowLeft") setSidebarWidth(currentWidth - 20);
+  else if (event.key === "ArrowRight") setSidebarWidth(currentWidth + 20);
+  else if (event.key === "Home") setSidebarWidth(sidebarPaneLimits().minimum);
+  else if (event.key === "End") setSidebarWidth(sidebarPaneLimits().maximum);
+  else return;
+  event.preventDefault();
+});
 
 function libraryPaneLimits() {
   const styles = getComputedStyle(libraryArea);
@@ -86,12 +141,18 @@ libraryResizer.addEventListener("keydown", event => {
   event.preventDefault();
 });
 window.addEventListener("resize", () => {
+  if (workspace.style.getPropertyValue("--sidebar-width")) {
+    setSidebarWidth(filterSidebar.getBoundingClientRect().width);
+  } else {
+    updateSidebarResizerAria();
+  }
   if (libraryArea.style.getPropertyValue("--library-pane-height")) {
     setLibraryPaneHeight(libraryShell.getBoundingClientRect().height);
   } else {
     updateLibraryResizerAria();
   }
 });
+requestAnimationFrame(updateSidebarResizerAria);
 requestAnimationFrame(updateLibraryResizerAria);
 
 function syncFilterSelectSizes() {

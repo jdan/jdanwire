@@ -89,8 +89,40 @@ button, input, select, table { font-family: inherit; font-size: inherit; }
 .icon-console::before { content: ""; position: absolute; inset: 1px 0 4px; background: #3b4d54; border: 2px solid #666; box-shadow: inset 2px 2px #9ae7ff; }
 .icon-console::after { content: ">_"; position: absolute; left: 4px; top: 4px; color: #b8f36a; font: bold 9px/10px monospace; }
 
-.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 174px minmax(0, 1fr); gap: 5px; padding: 4px 2px 2px; }
+.workspace {
+  --sidebar-width: 174px;
+  --sidebar-min-width: 125px;
+  --library-min-width: 420px;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(var(--sidebar-min-width), var(--sidebar-width)) 7px minmax(0, 1fr);
+  gap: 0;
+  padding: 4px 2px 2px;
+}
 .filter-sidebar { min-height: 0; display: flex; flex-direction: column; gap: 3px; }
+.sidebar-resizer {
+  position: relative;
+  width: 7px;
+  cursor: col-resize;
+  background: var(--panel);
+  border-left: 1px solid white;
+  border-right: 1px solid #777;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 2px;
+  height: 42px;
+  transform: translateY(-50%);
+  border-left: 1px solid #888;
+  border-right: 1px solid white;
+}
+.sidebar-resizer:hover, .sidebar-resizer:focus { background: #e8e6df; outline: 1px dotted #333; outline-offset: -2px; }
+body.resizing-sidebar { cursor: col-resize; user-select: none; }
 .sidebar-label { height: 15px; }
 .search-wrap { display: none; grid-template-columns: 42px 1fr; align-items: center; gap: 4px; }
 .search-wrap.visible { display: grid; }
@@ -254,7 +286,7 @@ body.resizing-library-pane { cursor: row-resize; user-select: none; }
   .brand { font-size: 18px; }
   .toolbar-tab { min-width: 54px; font-size: 10px; padding: 2px; }
   .toolbar-icon { transform: scale(.86); }
-  .workspace { grid-template-columns: 150px minmax(0, 1fr); }
+  .workspace { --sidebar-width: 150px; --library-min-width: 330px; }
   .status-footer { grid-template-columns: 200px 1fr; }
   .player-controls { grid-column: 1 / -1; position: absolute; bottom: 1px; right: 2px; width: 58%; background: var(--panel); }
   .track-table th:nth-child(5), .track-table td:nth-child(5) { display: none; }
@@ -301,6 +333,7 @@ body.resizing-library-pane { cursor: row-resize; user-select: none; }
     gap: 4px;
     padding: 3px 1px 1px;
   }
+  .sidebar-resizer { display: none; }
   .filter-sidebar {
     display: grid;
     grid-template-columns: 1fr 1fr;
