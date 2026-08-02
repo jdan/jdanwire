@@ -90,13 +90,9 @@ async function storeDirectoryHandle(handle) {
   });
 }
 
-async function directoryPermissionGranted(handle, requestPermission = false) {
+async function directoryPermissionGranted(handle) {
   if (typeof handle.queryPermission !== "function") return true;
-  let permission = await handle.queryPermission({ mode: "read" });
-  if (permission !== "granted" && requestPermission && typeof handle.requestPermission === "function") {
-    permission = await handle.requestPermission({ mode: "read" });
-  }
-  return permission === "granted";
+  return await handle.queryPermission({ mode: "read" }) === "granted";
 }
 
 async function collectDirectoryFiles(handle) {
@@ -483,6 +479,10 @@ async function loadLocalFiles(fileList, rootName = "") {
 }
 
 async function loadDirectoryHandle(handle) {
+  $("#choose-folder").disabled = true;
+  setFolderButtonLabel("Reading Music Folder…");
+  $("#connection-copy").textContent = `Reading ${handle.name}…`;
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Reading your music folder…</td></tr>`;
   const files = await collectDirectoryFiles(handle);
   await loadLocalFiles(files, handle.name);
 }
@@ -497,16 +497,47 @@ function chooseMusicFolder() {
   choosePersistentMusicFolder();
 }
 
-async function choosePersistentMusicFolder() {
+function choosePersistentMusicFolder() {
+  if (state.directoryHandle && state.needsReconnect) {
+    reconnectDirectoryHandle(state.directoryHandle);
+    return;
+  }
+  pickNewDirectoryHandle();
+}
+
+async function reconnectDirectoryHandle(handle) {
+  let permissionPromise;
   try {
-    if (state.directoryHandle && state.needsReconnect) {
-      if (await directoryPermissionGranted(state.directoryHandle, true)) {
-        await loadDirectoryHandle(state.directoryHandle);
-      } else {
-        $("#connection-copy").textContent = "Folder permission is required to restore this library";
-      }
+    // Request permission before yielding so the call keeps the click's user activation.
+    permissionPromise = typeof handle.requestPermission === "function"
+      ? handle.requestPermission({ mode: "read" })
+      : Promise.resolve("granted");
+  } catch (error) {
+    showFolderRetry("Could not request folder permission. Click to choose the folder again.");
+    console.warn("Could not request music folder permission", error);
+    return;
+  }
+
+  $("#choose-folder").disabled = true;
+  setFolderButtonLabel("Reconnecting…");
+  $("#connection-copy").textContent = `Requesting access to ${handle.name}…`;
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Waiting for folder permission…</td></tr>`;
+
+  try {
+    const permission = await permissionPromise;
+    if (permission !== "granted") {
+      showFolderRetry("Folder permission was not granted. Click to choose the folder again.");
       return;
     }
+    await loadDirectoryHandle(handle);
+  } catch (error) {
+    showFolderRetry("Could not reconnect that folder. Click to choose it again.");
+    console.warn("Could not reconnect the music folder", error);
+  }
+}
+
+async function pickNewDirectoryHandle() {
+  try {
     const handle = await window.showDirectoryPicker({ id: "jdanwire-music", mode: "read" });
     state.directoryHandle = handle;
     try { await storeDirectoryHandle(handle); }
@@ -515,9 +546,17 @@ async function choosePersistentMusicFolder() {
   } catch (error) {
     if (error.name !== "AbortError") {
       console.warn("Could not open the music folder", error);
-      $("#connection-copy").textContent = "Could not open that music folder";
+      showFolderRetry("Could not open that folder. Click to try again.");
     }
   }
+}
+
+function showFolderRetry(message) {
+  state.needsReconnect = false;
+  $("#choose-folder").disabled = false;
+  setFolderButtonLabel("Choose Folder Again");
+  $("#connection-copy").textContent = message;
+  trackList.innerHTML = `<tr><td colspan="8" class="loading-cell folder-prompt" role="button" tabindex="0">${message}</td></tr>`;
 }
 
 function showFolderPrompt(reconnect = false) {
@@ -534,6 +573,7 @@ function showFolderPrompt(reconnect = false) {
   $("#queue-button").disabled = true;
   $("#play-selection").disabled = true;
   $("#queue-all").disabled = true;
+  $("#choose-folder").disabled = false;
   $("#tab-title").textContent = "My Music Collection (0)";
   trackList.innerHTML = `<tr><td colspan="8" class="loading-cell folder-prompt" role="button" tabindex="0">${reconnect ? "Reconnect your remembered music folder to restore the library." : "Choose a music folder to build your private local library."}</td></tr>`;
   $("#connection-copy").textContent = reconnect ? "Music folder remembered • permission required" : "No folder selected • files stay on this device";
