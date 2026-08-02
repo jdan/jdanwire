@@ -184,6 +184,25 @@ th {
   box-shadow: inset 1px 1px white;
   font-weight: normal;
 }
+.sort-header {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.sort-header:focus { outline: 1px dotted #222; outline-offset: -1px; }
+.sort-indicator { font-size: 8px; }
+th[aria-sort="ascending"] .sort-indicator::after { content: "▲"; }
+th[aria-sort="descending"] .sort-indicator::after { content: "▼"; }
 td { height: 18px; padding: 1px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid #ececec; }
 .track-table tbody tr:nth-child(even) { background: #f4f5f7; }
 .track-table tbody tr { cursor: default; }

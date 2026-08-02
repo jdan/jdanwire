@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="apple-touch-icon" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="stylesheet" href="/vendor/98.css" />
-  <link rel="stylesheet" href="/styles.css?v=12" />
+  <link rel="stylesheet" href="/styles.css?v=13" />
 </head>
 <body>
   <main class="window app-window" aria-label="jdanwire music library">
@@ -62,7 +62,16 @@
           <div class="library-tab"><span>✕</span> <span id="tab-title">My Music Collection</span></div>
           <div class="sunken-panel table-shell library-shell">
             <table class="track-table" id="track-table">
-              <thead><tr><th>Quality</th><th>#</th><th>Title</th><th>Artist</th><th>Album</th><th>Size</th><th>Format</th><th>Bitrate</th></tr></thead>
+              <thead><tr>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="quality">Quality<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="track">#<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="title">Title<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="artist">Artist<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="album">Album<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="size">Size<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="codec">Format<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button type="button" class="sort-header" data-sort-key="bitrate">Bitrate<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              </tr></thead>
               <tbody id="track-list"><tr><td colspan="8" class="loading-cell">Scanning local music files…</td></tr></tbody>
             </table>
           </div>
@@ -107,6 +116,6 @@
     </div>
   </main>
   <audio id="audio" preload="metadata"></audio>
-  <script type="module" src="/app.js?v=12"></script>
+  <script type="module" src="/app.js?v=13"></script>
 </body>
 </html>

@@ -9,6 +9,8 @@ const state = {
   downloads: new Map(),
   shuffle: false,
   repeat: false,
+  sortKey: null,
+  sortDirection: "ascending",
   source: "",
   localRoot: "",
   directoryHandle: null,
@@ -17,6 +19,7 @@ const state = {
 
 const audio = $("#audio");
 const trackList = $("#track-list");
+const trackTable = $("#track-table");
 const queueList = $("#queue-list");
 const workspace = $(".workspace");
 const filterSidebar = $(".filter-sidebar");
@@ -29,6 +32,7 @@ const mobileViewport = window.matchMedia("(max-width: 600px)");
 const libraryDatabase = "jdanwire-library";
 const libraryStore = "settings";
 const directoryHandleKey = "music-directory";
+const trackCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 let currentObjectUrl = null;
 let sidebarResizeStart = null;
 let libraryResizeStart = null;
@@ -340,6 +344,51 @@ function renderTracks() {
     </tr>`).join("");
 }
 
+function trackSortValue(track, key) {
+  if (key === "quality") return Number(track.sampleRate || 0) * 1_000_000_000 + Number(track.bitrate || 0);
+  if (["track", "size", "bitrate"].includes(key)) return Number(track[key] || 0);
+  return String(track[key] || "");
+}
+
+function sortFilteredTracks() {
+  if (!state.sortKey) return;
+  const direction = state.sortDirection === "ascending" ? 1 : -1;
+  state.filtered.sort((a, b) => {
+    const left = trackSortValue(a, state.sortKey);
+    const right = trackSortValue(b, state.sortKey);
+    const comparison = typeof left === "number" ? left - right : trackCollator.compare(left, right);
+    return comparison * direction;
+  });
+}
+
+function updateSortHeaders() {
+  trackTable.querySelectorAll("th").forEach(header => {
+    const button = header.querySelector(".sort-header");
+    const active = button?.dataset.sortKey === state.sortKey;
+    header.setAttribute("aria-sort", active ? state.sortDirection : "none");
+    if (button) button.title = active
+      ? `Sort ${state.sortDirection === "ascending" ? "descending" : "ascending"}`
+      : "Sort ascending";
+  });
+}
+
+trackTable.querySelector("thead").addEventListener("click", event => {
+  const button = event.target.closest(".sort-header");
+  if (!button) return;
+  const key = button.dataset.sortKey;
+  if (state.sortKey === key) {
+    state.sortDirection = state.sortDirection === "ascending" ? "descending" : "ascending";
+  } else {
+    state.sortKey = key;
+    state.sortDirection = "ascending";
+  }
+  sortFilteredTracks();
+  updateSortHeaders();
+  renderTracks();
+});
+
+updateSortHeaders();
+
 function applyFilters() {
   const query = $("#search-input").value.trim().toLowerCase();
   const genre = $("#genre-filter").value;
@@ -351,6 +400,7 @@ function applyFilters() {
     (!album || track.album === album) &&
     (!query || [track.title, track.artist, track.album, track.genre].some(value => value.toLowerCase().includes(query)))
   );
+  sortFilteredTracks();
   renderTracks();
 }
 
@@ -594,6 +644,7 @@ async function loadLocalFiles(fileList, rootName = "") {
   trackList.innerHTML = `<tr><td colspan="8" class="loading-cell">Reading ${files.length} local music files…</td></tr>`;
   state.tracks = await mapLimited(files, 4, indexLocalFile);
   state.filtered = [...state.tracks].sort((a, b) => a.relative.localeCompare(b.relative));
+  sortFilteredTracks();
   state.source = "browser";
   state.localRoot = rootName || files[0].relative.split("/")[0] || "Selected files";
   state.needsReconnect = false;
@@ -738,6 +789,7 @@ async function loadLibrary() {
     const data = await response.json();
     state.tracks = data.tracks;
     state.filtered = [...data.tracks];
+    sortFilteredTracks();
     state.source = data.source;
     fillSelect("#genre-filter", "genre");
     fillSelect("#artist-filter", "artist");
