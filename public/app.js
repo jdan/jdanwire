@@ -18,12 +18,81 @@ const state = {
 const audio = $("#audio");
 const trackList = $("#track-list");
 const queueList = $("#queue-list");
+const libraryArea = $(".library-area");
+const libraryShell = $(".library-shell");
+const libraryResizer = $("#library-resizer");
 const audioExtensions = new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus"]);
 const mobileViewport = window.matchMedia("(max-width: 600px)");
 const libraryDatabase = "jdanwire-library";
 const libraryStore = "settings";
 const directoryHandleKey = "music-directory";
 let currentObjectUrl = null;
+let libraryResizeStart = null;
+
+function libraryPaneLimits() {
+  const styles = getComputedStyle(libraryArea);
+  const minimum = parseFloat(styles.getPropertyValue("--library-pane-min-height")) || 156;
+  const queueMinimum = parseFloat(styles.getPropertyValue("--queue-pane-min-height")) || 82;
+  const fixedHeight = [
+    $(".library-tab"),
+    libraryResizer,
+    $(".action-strip"),
+    $(".queue-heading"),
+    $(".queue-actions")
+  ].reduce((total, element) => total + element.getBoundingClientRect().height, 0);
+  return { minimum, maximum: Math.max(minimum, libraryArea.clientHeight - fixedHeight - queueMinimum) };
+}
+
+function updateLibraryResizerAria() {
+  const { minimum, maximum } = libraryPaneLimits();
+  libraryResizer.setAttribute("aria-valuemin", Math.round(minimum));
+  libraryResizer.setAttribute("aria-valuemax", Math.round(maximum));
+  libraryResizer.setAttribute("aria-valuenow", Math.round(libraryShell.getBoundingClientRect().height));
+}
+
+function setLibraryPaneHeight(height) {
+  const { minimum, maximum } = libraryPaneLimits();
+  const nextHeight = Math.min(maximum, Math.max(minimum, Math.round(height)));
+  libraryArea.style.setProperty("--library-pane-height", `${nextHeight}px`);
+  updateLibraryResizerAria();
+}
+
+libraryResizer.addEventListener("pointerdown", event => {
+  if (event.button !== 0) return;
+  libraryResizeStart = { y: event.clientY, height: libraryShell.getBoundingClientRect().height };
+  libraryResizer.setPointerCapture?.(event.pointerId);
+  document.body.classList.add("resizing-library-pane");
+  event.preventDefault();
+});
+libraryResizer.addEventListener("pointermove", event => {
+  if (!libraryResizeStart) return;
+  setLibraryPaneHeight(libraryResizeStart.height + event.clientY - libraryResizeStart.y);
+});
+function finishLibraryResize(event) {
+  if (!libraryResizeStart) return;
+  libraryResizeStart = null;
+  if (libraryResizer.hasPointerCapture?.(event.pointerId)) libraryResizer.releasePointerCapture(event.pointerId);
+  document.body.classList.remove("resizing-library-pane");
+}
+libraryResizer.addEventListener("pointerup", finishLibraryResize);
+libraryResizer.addEventListener("pointercancel", finishLibraryResize);
+libraryResizer.addEventListener("keydown", event => {
+  const currentHeight = libraryShell.getBoundingClientRect().height;
+  if (event.key === "ArrowUp") setLibraryPaneHeight(currentHeight - 20);
+  else if (event.key === "ArrowDown") setLibraryPaneHeight(currentHeight + 20);
+  else if (event.key === "Home") setLibraryPaneHeight(libraryPaneLimits().minimum);
+  else if (event.key === "End") setLibraryPaneHeight(libraryPaneLimits().maximum);
+  else return;
+  event.preventDefault();
+});
+window.addEventListener("resize", () => {
+  if (libraryArea.style.getPropertyValue("--library-pane-height")) {
+    setLibraryPaneHeight(libraryShell.getBoundingClientRect().height);
+  } else {
+    updateLibraryResizerAria();
+  }
+});
+requestAnimationFrame(updateLibraryResizerAria);
 
 function syncFilterSelectSizes() {
   ["#genre-filter", "#artist-filter", "#album-filter"].forEach(selector => {

@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="apple-touch-icon" href="/assets/jdanwire-avatar.png?v=2" />
   <link rel="stylesheet" href="/vendor/98.css" />
-  <link rel="stylesheet" href="/styles.css?v=9" />
+  <link rel="stylesheet" href="/styles.css?v=11" />
 </head>
 <body>
   <main class="window app-window" aria-label="jdanwire music library">
@@ -64,6 +64,7 @@
               <tbody id="track-list"><tr><td colspan="8" class="loading-cell">Scanning local music files…</td></tr></tbody>
             </table>
           </div>
+          <div id="library-resizer" class="library-resizer" role="separator" aria-label="Resize music library pane" aria-orientation="horizontal" tabindex="0"></div>
 
           <div class="action-strip" aria-label="Library actions">
             <button id="queue-button" disabled><img class="action-icon" src="/assets/kde-crystal/actions/add-to-queue.png" alt="" />Add to Queue</button>
@@ -104,6 +105,6 @@
     </div>
   </main>
   <audio id="audio" preload="metadata"></audio>
-  <script type="module" src="/app.js?v=10"></script>
+  <script type="module" src="/app.js?v=11"></script>
 </body>
 </html>
